@@ -1,0 +1,503 @@
+{
+  "entities": {
+    "Company": {
+      "title": "Company",
+      "description": "Organization master record supporting multi-company tenancy.",
+      "type": "object",
+      "properties": {
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "code": { "type": "string", "minLength": 2, "maxLength": 24 },
+        "address": { "type": "string", "maxLength": 300 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "email": { "type": "string", "format": "email", "maxLength": 120 },
+        "npwp": { "type": "string", "maxLength": 32 },
+        "officeLat": { "type": "number" },
+        "officeLng": { "type": "number" },
+        "geofenceRadiusMeters": { "type": "number" },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["companyId", "name", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "RBAC identity mapping Firebase Auth UID to role and employeeId.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "employeeId": { "type": "string", "maxLength": 64 },
+        "email": { "type": "string", "format": "email", "maxLength": 120 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "role": { "type": "string", "enum": ["Super Admin", "HR Admin", "Management", "Supervisor", "Employee"] },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "departmentId": { "type": "string", "maxLength": 64 },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "companyId", "email", "displayName", "role", "status", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Central employee master record.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "maxLength": 128 },
+        "employeeCode": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "fullName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 120 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "address": { "type": "string", "maxLength": 300 },
+        "dateOfBirth": { "type": "string", "maxLength": 20 },
+        "gender": { "type": "string", "enum": ["Laki-laki", "Perempuan"] },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "nik": { "type": "string", "maxLength": 32 },
+        "npwp": { "type": "string", "maxLength": 32 },
+        "departmentId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "positionId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "employmentType": { "type": "string", "enum": ["Full-Time", "Contract", "Probation", "Intern"] },
+        "joinDate": { "type": "string", "maxLength": 20 },
+        "contractStartDate": { "type": "string", "maxLength": 20 },
+        "contractEndDate": { "type": "string", "maxLength": 20 },
+        "employmentStatus": { "type": "string", "enum": ["Active", "Inactive"] },
+        "supervisorId": { "type": "string", "maxLength": 64 },
+        "bankName": { "type": "string", "maxLength": 60 },
+        "bankAccountNumber": { "type": "string", "maxLength": 60 },
+        "bankAccountHolder": { "type": "string", "maxLength": 120 },
+        "shiftId": { "type": "string", "maxLength": 64 },
+        "baseSalary": { "type": "number" },
+        "positionAllowance": { "type": "number" },
+        "transportAllowance": { "type": "number" },
+        "mealAllowance": { "type": "number" },
+        "documentNotes": { "type": "string", "maxLength": 500 },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["employeeId", "companyId", "employeeCode", "fullName", "email", "departmentId", "positionId", "employmentType", "joinDate", "employmentStatus", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Department": {
+      "title": "Department",
+      "description": "Organizational department structure.",
+      "type": "object",
+      "properties": {
+        "departmentId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "code": { "type": "string", "minLength": 2, "maxLength": 24 },
+        "name": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "headEmployeeId": { "type": "string", "maxLength": 64 },
+        "description": { "type": "string", "maxLength": 300 },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["departmentId", "companyId", "code", "name", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Position": {
+      "title": "Position",
+      "description": "Job title and grade definition.",
+      "type": "object",
+      "properties": {
+        "positionId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "departmentId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "title": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "grade": { "type": "string", "maxLength": 24 },
+        "defaultBaseSalary": { "type": "number" },
+        "description": { "type": "string", "maxLength": 300 },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["positionId", "companyId", "departmentId", "title", "defaultBaseSalary", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Daily employee attendance keyed by {employeeId}_{workDate} for duplicate prevention.",
+      "type": "object",
+      "properties": {
+        "attendanceId": { "type": "string", "minLength": 4, "maxLength": 96, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "employeeId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "workDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "shiftId": { "type": "string", "maxLength": 64 },
+        "clockInAt": { "type": "string", "format": "date-time" },
+        "clockOutAt": { "type": "string", "format": "date-time" },
+        "clockInLat": { "type": "number" },
+        "clockInLng": { "type": "number" },
+        "clockOutLat": { "type": "number" },
+        "clockOutLng": { "type": "number" },
+        "gpsVerified": { "type": "boolean" },
+        "clockInSelfie": { "type": "string", "maxLength": 650000 },
+        "clockOutSelfie": { "type": "string", "maxLength": 650000 },
+        "lateMinutes": { "type": "number" },
+        "workMinutes": { "type": "number" },
+        "status": { "type": "string", "enum": ["Present", "Late", "Absent", "Half-Day", "Leave"] },
+        "correctionStatus": { "type": "string", "enum": ["None", "Pending", "Approved", "Rejected"] },
+        "correctionReason": { "type": "string", "maxLength": 300 },
+        "sourceDevice": { "type": "string", "maxLength": 64 },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["attendanceId", "companyId", "employeeId", "workDate", "clockInAt", "status", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "LeaveRequest": {
+      "title": "LeaveRequest",
+      "description": "Employee leave requests and approval workflow.",
+      "type": "object",
+      "properties": {
+        "leaveRequestId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "employeeId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "supervisorId": { "type": "string", "maxLength": 64 },
+        "leaveType": { "type": "string", "enum": ["Annual", "Sick", "Personal", "Maternity", "Unpaid"] },
+        "startDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "endDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "totalDays": { "type": "number" },
+        "reason": { "type": "string", "minLength": 2, "maxLength": 500 },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected", "Cancelled"] },
+        "rejectionReason": { "type": "string", "maxLength": 300 },
+        "reviewedBy": { "type": "string", "maxLength": 128 },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["leaveRequestId", "companyId", "employeeId", "leaveType", "startDate", "endDate", "totalDays", "reason", "status", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "LeaveBalance": {
+      "title": "LeaveBalance",
+      "description": "Annual leave balance per employee and year.",
+      "type": "object",
+      "properties": {
+        "balanceId": { "type": "string", "minLength": 4, "maxLength": 80, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "employeeId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "year": { "type": "number" },
+        "annualQuota": { "type": "number" },
+        "annualUsed": { "type": "number" },
+        "annualRemaining": { "type": "number" },
+        "sickQuota": { "type": "number" },
+        "sickUsed": { "type": "number" },
+        "personalUsed": { "type": "number" },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["balanceId", "companyId", "employeeId", "year", "annualQuota", "annualUsed", "annualRemaining", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Shift": {
+      "title": "Shift",
+      "description": "Working shift schedule and break configuration.",
+      "type": "object",
+      "properties": {
+        "shiftId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "name": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "startTime": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+        "endTime": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+        "breakMinutes": { "type": "number" },
+        "lateToleranceMinutes": { "type": "number" },
+        "workDaysLabel": { "type": "string", "maxLength": 100 },
+        "isHoliday": { "type": "boolean" },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["shiftId", "companyId", "name", "startTime", "endTime", "breakMinutes", "lateToleranceMinutes", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "OvertimeRequest": {
+      "title": "OvertimeRequest",
+      "description": "Employee overtime requests and duration approval.",
+      "type": "object",
+      "properties": {
+        "overtimeId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "employeeId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "supervisorId": { "type": "string", "maxLength": 64 },
+        "overtimeDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "startTime": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+        "endTime": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+        "durationHours": { "type": "number" },
+        "reason": { "type": "string", "minLength": 2, "maxLength": 400 },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
+        "rejectionReason": { "type": "string", "maxLength": 300 },
+        "reviewedBy": { "type": "string", "maxLength": 128 },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["overtimeId", "companyId", "employeeId", "overtimeDate", "startTime", "endTime", "durationHours", "reason", "status", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "PayrollRun": {
+      "title": "PayrollRun",
+      "description": "Monthly payroll run workflow header.",
+      "type": "object",
+      "properties": {
+        "payrollId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "periodMonth": { "type": "string", "pattern": "^\\d{4}-\\d{2}$" },
+        "periodLabel": { "type": "string", "minLength": 3, "maxLength": 80 },
+        "status": { "type": "string", "enum": ["Draft", "Calculation", "HR Review", "Management Approval", "Finalized", "Paid"] },
+        "isProvisional": { "type": "boolean" },
+        "employeeCount": { "type": "number" },
+        "totalGross": { "type": "number" },
+        "totalDeductions": { "type": "number" },
+        "totalNetPay": { "type": "number" },
+        "reviewedBy": { "type": "string", "maxLength": 128 },
+        "approvedBy": { "type": "string", "maxLength": 128 },
+        "finalizedAt": { "type": "string", "format": "date-time" },
+        "paidAt": { "type": "string", "format": "date-time" },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["payrollId", "companyId", "periodMonth", "periodLabel", "status", "isProvisional", "employeeCount", "totalGross", "totalDeductions", "totalNetPay", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Payslip": {
+      "title": "Payslip",
+      "description": "Employee-specific payroll breakdown with strict owner/HR privacy isolation.",
+      "type": "object",
+      "properties": {
+        "payslipId": { "type": "string", "minLength": 4, "maxLength": 96, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "payrollId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "employeeId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "employeeName": { "type": "string", "maxLength": 120 },
+        "periodMonth": { "type": "string", "pattern": "^\\d{4}-\\d{2}$" },
+        "periodLabel": { "type": "string", "maxLength": 80 },
+        "workflowStatus": { "type": "string", "enum": ["Draft", "Calculation", "HR Review", "Management Approval", "Finalized", "Paid"] },
+        "isProvisional": { "type": "boolean" },
+        "basicSalary": { "type": "number" },
+        "positionAllowance": { "type": "number" },
+        "transportAllowance": { "type": "number" },
+        "mealAllowance": { "type": "number" },
+        "overtimePayment": { "type": "number" },
+        "otherAllowances": { "type": "number" },
+        "grossIncome": { "type": "number" },
+        "absenceDeduction": { "type": "number" },
+        "lateDeduction": { "type": "number" },
+        "bpjsEmployment": { "type": "number" },
+        "bpjsHealth": { "type": "number" },
+        "pph21": { "type": "number" },
+        "otherDeductions": { "type": "number" },
+        "totalDeductions": { "type": "number" },
+        "netPay": { "type": "number" },
+        "calculationNotes": { "type": "string", "maxLength": 500 },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["payslipId", "payrollId", "companyId", "employeeId", "periodMonth", "workflowStatus", "isProvisional", "basicSalary", "grossIncome", "totalDeductions", "netPay", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "PerformanceReview": {
+      "title": "PerformanceReview",
+      "description": "Employee performance cycle evaluations.",
+      "type": "object",
+      "properties": {
+        "reviewId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "employeeId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "reviewerId": { "type": "string", "maxLength": 64 },
+        "cycleLabel": { "type": "string", "maxLength": 60 },
+        "kpiScore": { "type": "number" },
+        "competencyScore": { "type": "number" },
+        "overallRating": { "type": "string", "enum": ["Exceeds", "Meets", "Needs Improvement"] },
+        "strengths": { "type": "string", "maxLength": 500 },
+        "improvements": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["Draft", "Submitted", "Acknowledged"] },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reviewId", "companyId", "employeeId", "cycleLabel", "kpiScore", "overallRating", "status", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Company-wide HR announcements.",
+      "type": "object",
+      "properties": {
+        "announcementId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "title": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "body": { "type": "string", "minLength": 2, "maxLength": 2000 },
+        "category": { "type": "string", "enum": ["Policy", "Payroll", "Event", "Urgent"] },
+        "publishedAt": { "type": "string", "format": "date-time" },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["announcementId", "companyId", "title", "body", "category", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Targeted user notifications.",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "recipientEmployeeId": { "type": "string", "maxLength": 64 },
+        "recipientUid": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "message": { "type": "string", "minLength": 2, "maxLength": 400 },
+        "type": { "type": "string", "enum": ["Leave", "Overtime", "Payroll", "Attendance", "Announcement"] },
+        "isRead": { "type": "boolean" },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["notificationId", "companyId", "title", "message", "type", "isRead", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable audit trail of sensitive HR and payroll actions.",
+      "type": "object",
+      "properties": {
+        "logId": { "type": "string", "minLength": 2, "maxLength": 80, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 120 },
+        "actorRole": { "type": "string", "maxLength": 40 },
+        "action": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "targetCollection": { "type": "string", "maxLength": 64 },
+        "targetId": { "type": "string", "maxLength": 80 },
+        "summary": { "type": "string", "maxLength": 400 },
+        "recordStatus": { "type": "string", "enum": ["active"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["logId", "companyId", "actorUid", "actorRole", "action", "targetCollection", "targetId", "summary", "recordStatus", "createdBy", "createdAt"]
+    },
+    "SystemSettings": {
+      "title": "SystemSettings",
+      "description": "Configurable Indonesian tax/BPJS rates, geofencing, and company HR policies.",
+      "type": "object",
+      "properties": {
+        "settingId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "effectiveDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "bpjsHealthEmployeeRate": { "type": "number" },
+        "bpjsHealthEmployerRate": { "type": "number" },
+        "bpjsHealthCapAmount": { "type": "number" },
+        "bpjsJhtEmployeeRate": { "type": "number" },
+        "bpjsJpEmployeeRate": { "type": "number" },
+        "bpjsJpCapAmount": { "type": "number" },
+        "pph21Method": { "type": "string", "enum": ["TER", "Progressive"] },
+        "pph21PtkpAnnual": { "type": "number" },
+        "pph21Tier1Rate": { "type": "number" },
+        "pph21Tier2Rate": { "type": "number" },
+        "overtimeHourlyMultiplier": { "type": "number" },
+        "absenceDailyPenaltyRate": { "type": "number" },
+        "latePenaltyPerMinute": { "type": "number" },
+        "requireGpsAttendance": { "type": "boolean" },
+        "requireSelfieAttendance": { "type": "boolean" },
+        "officeLat": { "type": "number" },
+        "officeLng": { "type": "number" },
+        "maxGeofenceMeters": { "type": "number" },
+        "recordStatus": { "type": "string", "enum": ["active", "archived"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["settingId", "companyId", "effectiveDate", "bpjsHealthEmployeeRate", "bpjsJhtEmployeeRate", "bpjsJpEmployeeRate", "pph21Method", "overtimeHourlyMultiplier", "recordStatus", "createdBy", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/companies/{companyId}": {
+      "schema": { "$ref": "#/entities/Company" },
+      "description": "Company master profiles for multi-company support."
+    },
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "User RBAC profile and employee mapping."
+    },
+    "/employees/{employeeId}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Employee master records."
+    },
+    "/departments/{departmentId}": {
+      "schema": { "$ref": "#/entities/Department" },
+      "description": "Company departments."
+    },
+    "/positions/{positionId}": {
+      "schema": { "$ref": "#/entities/Position" },
+      "description": "Job positions and salary grades."
+    },
+    "/attendance/{attendanceId}": {
+      "schema": { "$ref": "#/entities/Attendance" },
+      "description": "Daily attendance keyed as {employeeId}_{workDate}."
+    },
+    "/leave_requests/{leaveRequestId}": {
+      "schema": { "$ref": "#/entities/LeaveRequest" },
+      "description": "Leave applications and approvals."
+    },
+    "/leave_balances/{balanceId}": {
+      "schema": { "$ref": "#/entities/LeaveBalance" },
+      "description": "Leave balances keyed as {employeeId}_{year}."
+    },
+    "/shifts/{shiftId}": {
+      "schema": { "$ref": "#/entities/Shift" },
+      "description": "Shift definitions and break policies."
+    },
+    "/overtime_requests/{overtimeId}": {
+      "schema": { "$ref": "#/entities/OvertimeRequest" },
+      "description": "Overtime requests and approvals."
+    },
+    "/payroll/{payrollId}": {
+      "schema": { "$ref": "#/entities/PayrollRun" },
+      "description": "Monthly payroll batches and workflow status."
+    },
+    "/payslips/{payslipId}": {
+      "schema": { "$ref": "#/entities/Payslip" },
+      "description": "Individual employee payslips isolated by employeeId/uid."
+    },
+    "/performance_reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/PerformanceReview" },
+      "description": "Performance review cycles."
+    },
+    "/announcements/{announcementId}": {
+      "schema": { "$ref": "#/entities/Announcement" },
+      "description": "Company announcements."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Per-user notifications."
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable audit log entries."
+    },
+    "/system_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/SystemSettings" },
+      "description": "Indonesian payroll parameters and attendance policy settings."
+    }
+  }
+}

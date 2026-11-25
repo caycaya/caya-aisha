@@ -1,0 +1,6 @@
+{
+  "name": "KerjaPay HRM",
+  "description": "Sistem Manajemen SDM terpadu dengan Panel Backoffice dan Mobile PWA Employee Self-Service (ESS) untuk presensi selfie, cuti, dan payroll harian.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

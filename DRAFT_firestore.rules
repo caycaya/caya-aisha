@@ -1,0 +1,644 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Pillar 4.1: Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Reusable Hardened Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 2 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrapAdmin() {
+      return isSignedIn() && request.auth.token.email == 'caycayaisha62@gmail.com';
+    }
+
+    function hasUserDoc() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isActiveUser() {
+      return isSignedIn() && hasUserDoc() && userDoc().status == 'active';
+    }
+
+    function isSuperAdmin() {
+      return isBootstrapAdmin() || (isActiveUser() && userDoc().role == 'Super Admin');
+    }
+
+    function isHRAdmin() {
+      return isSuperAdmin() || (isActiveUser() && userDoc().role == 'HR Admin');
+    }
+
+    function isManagement() {
+      return isSuperAdmin() || (isActiveUser() && userDoc().role == 'Management');
+    }
+
+    function isSupervisor() {
+      return isActiveUser() && userDoc().role == 'Supervisor';
+    }
+
+    function isBackoffice() {
+      return isHRAdmin() || isManagement() || isSupervisor();
+    }
+
+    function isPayrollAdmin() {
+      return isHRAdmin() || isManagement();
+    }
+
+    // --- Validation Blueprints (Pillar 2) ---
+    function isValidCompany(data) {
+      return data.keys().hasAll(['companyId', 'name', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['companyId', 'name', 'code', 'address', 'phone', 'email', 'npwp', 'officeLat', 'officeLng', 'geofenceRadiusMeters', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.companyId)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'companyId', 'email', 'displayName', 'role', 'status', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'companyId', 'employeeId', 'email', 'displayName', 'role', 'status', 'departmentId', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && isValidId(data.companyId)
+        && data.email is string && data.email.size() <= 120
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.role in ['Super Admin', 'HR Admin', 'Management', 'Supervisor', 'Employee']
+        && data.status in ['active', 'inactive']
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEmployee(data) {
+      return data.keys().hasAll(['employeeId', 'companyId', 'employeeCode', 'fullName', 'email', 'departmentId', 'positionId', 'employmentType', 'joinDate', 'employmentStatus', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['employeeId', 'companyId', 'uid', 'employeeCode', 'fullName', 'email', 'phone', 'address', 'dateOfBirth', 'gender', 'photoUrl', 'nik', 'npwp', 'departmentId', 'positionId', 'employmentType', 'joinDate', 'contractStartDate', 'contractEndDate', 'employmentStatus', 'supervisorId', 'bankName', 'bankAccountNumber', 'bankAccountHolder', 'shiftId', 'baseSalary', 'positionAllowance', 'transportAllowance', 'mealAllowance', 'documentNotes', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.employeeId)
+        && isValidId(data.companyId)
+        && data.employeeCode is string && data.employeeCode.size() >= 2 && data.employeeCode.size() <= 40
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 120
+        && data.email is string && data.email.size() <= 120
+        && data.departmentId is string && data.departmentId.size() >= 1 && data.departmentId.size() <= 64
+        && data.positionId is string && data.positionId.size() >= 1 && data.positionId.size() <= 64
+        && data.employmentType in ['Full-Time', 'Contract', 'Probation', 'Intern']
+        && data.joinDate is string && data.joinDate.size() <= 20
+        && data.employmentStatus in ['Active', 'Inactive']
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDepartment(data) {
+      return data.keys().hasAll(['departmentId', 'companyId', 'code', 'name', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['departmentId', 'companyId', 'code', 'name', 'headEmployeeId', 'description', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.departmentId)
+        && isValidId(data.companyId)
+        && data.code is string && data.code.size() >= 2 && data.code.size() <= 24
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPosition(data) {
+      return data.keys().hasAll(['positionId', 'companyId', 'departmentId', 'title', 'defaultBaseSalary', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['positionId', 'companyId', 'departmentId', 'title', 'grade', 'defaultBaseSalary', 'description', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.positionId)
+        && isValidId(data.companyId)
+        && data.departmentId is string && data.departmentId.size() <= 64
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 100
+        && data.defaultBaseSalary is number && data.defaultBaseSalary >= 0
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAttendance(data) {
+      return data.keys().hasAll(['attendanceId', 'companyId', 'employeeId', 'uid', 'workDate', 'clockInAt', 'status', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['attendanceId', 'companyId', 'employeeId', 'uid', 'workDate', 'shiftId', 'clockInAt', 'clockOutAt', 'clockInLat', 'clockInLng', 'clockOutLat', 'clockOutLng', 'gpsVerified', 'clockInSelfie', 'clockOutSelfie', 'lateMinutes', 'workMinutes', 'status', 'correctionStatus', 'correctionReason', 'sourceDevice', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.attendanceId)
+        && isValidId(data.companyId)
+        && isValidId(data.employeeId)
+        && data.uid is string && data.uid.size() <= 128
+        && data.workDate is string && data.workDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.clockInAt is timestamp
+        && data.status in ['Present', 'Late', 'Absent', 'Half-Day', 'Leave']
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLeaveRequest(data) {
+      return data.keys().hasAll(['leaveRequestId', 'companyId', 'employeeId', 'uid', 'leaveType', 'startDate', 'endDate', 'totalDays', 'reason', 'status', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['leaveRequestId', 'companyId', 'employeeId', 'uid', 'supervisorId', 'leaveType', 'startDate', 'endDate', 'totalDays', 'reason', 'status', 'rejectionReason', 'reviewedBy', 'reviewedAt', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.leaveRequestId)
+        && isValidId(data.companyId)
+        && isValidId(data.employeeId)
+        && data.uid is string && data.uid.size() <= 128
+        && data.leaveType in ['Annual', 'Sick', 'Personal', 'Maternity', 'Unpaid']
+        && data.startDate is string && data.startDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.endDate is string && data.endDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.totalDays is number && data.totalDays > 0
+        && data.reason is string && data.reason.size() >= 2 && data.reason.size() <= 500
+        && data.status in ['Pending', 'Approved', 'Rejected', 'Cancelled']
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLeaveBalance(data) {
+      return data.keys().hasAll(['balanceId', 'companyId', 'employeeId', 'uid', 'year', 'annualQuota', 'annualUsed', 'annualRemaining', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['balanceId', 'companyId', 'employeeId', 'uid', 'year', 'annualQuota', 'annualUsed', 'annualRemaining', 'sickQuota', 'sickUsed', 'personalUsed', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.balanceId)
+        && isValidId(data.companyId)
+        && isValidId(data.employeeId)
+        && data.uid is string && data.uid.size() <= 128
+        && data.year is number
+        && data.annualQuota is number && data.annualQuota >= 0
+        && data.annualUsed is number && data.annualUsed >= 0
+        && data.annualRemaining is number && data.annualRemaining >= 0
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidShift(data) {
+      return data.keys().hasAll(['shiftId', 'companyId', 'name', 'startTime', 'endTime', 'breakMinutes', 'lateToleranceMinutes', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['shiftId', 'companyId', 'name', 'startTime', 'endTime', 'breakMinutes', 'lateToleranceMinutes', 'workDaysLabel', 'isHoliday', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.shiftId)
+        && isValidId(data.companyId)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 80
+        && data.startTime is string && data.startTime.matches('^\\d{2}:\\d{2}$')
+        && data.endTime is string && data.endTime.matches('^\\d{2}:\\d{2}$')
+        && data.breakMinutes is number && data.breakMinutes >= 0
+        && data.lateToleranceMinutes is number && data.lateToleranceMinutes >= 0
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidOvertimeRequest(data) {
+      return data.keys().hasAll(['overtimeId', 'companyId', 'employeeId', 'uid', 'overtimeDate', 'startTime', 'endTime', 'durationHours', 'reason', 'status', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['overtimeId', 'companyId', 'employeeId', 'uid', 'supervisorId', 'overtimeDate', 'startTime', 'endTime', 'durationHours', 'reason', 'status', 'rejectionReason', 'reviewedBy', 'reviewedAt', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.overtimeId)
+        && isValidId(data.companyId)
+        && isValidId(data.employeeId)
+        && data.uid is string && data.uid.size() <= 128
+        && data.overtimeDate is string && data.overtimeDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.startTime is string && data.startTime.matches('^\\d{2}:\\d{2}$')
+        && data.endTime is string && data.endTime.matches('^\\d{2}:\\d{2}$')
+        && data.durationHours is number && data.durationHours > 0
+        && data.reason is string && data.reason.size() >= 2 && data.reason.size() <= 400
+        && data.status in ['Pending', 'Approved', 'Rejected']
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPayrollRun(data) {
+      return data.keys().hasAll(['payrollId', 'companyId', 'periodMonth', 'periodLabel', 'status', 'isProvisional', 'employeeCount', 'totalGross', 'totalDeductions', 'totalNetPay', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['payrollId', 'companyId', 'periodMonth', 'periodLabel', 'status', 'isProvisional', 'employeeCount', 'totalGross', 'totalDeductions', 'totalNetPay', 'reviewedBy', 'approvedBy', 'finalizedAt', 'paidAt', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.payrollId)
+        && isValidId(data.companyId)
+        && data.periodMonth is string && data.periodMonth.matches('^\\d{4}-\\d{2}$')
+        && data.periodLabel is string && data.periodLabel.size() >= 3 && data.periodLabel.size() <= 80
+        && data.status in ['Draft', 'Calculation', 'HR Review', 'Management Approval', 'Finalized', 'Paid']
+        && data.isProvisional is bool
+        && data.employeeCount is number && data.employeeCount >= 0
+        && data.totalGross is number && data.totalGross >= 0
+        && data.totalDeductions is number && data.totalDeductions >= 0
+        && data.totalNetPay is number && data.totalNetPay >= 0
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPayslip(data) {
+      return data.keys().hasAll(['payslipId', 'payrollId', 'companyId', 'employeeId', 'uid', 'periodMonth', 'workflowStatus', 'isProvisional', 'basicSalary', 'grossIncome', 'totalDeductions', 'netPay', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['payslipId', 'payrollId', 'companyId', 'employeeId', 'uid', 'employeeName', 'periodMonth', 'periodLabel', 'workflowStatus', 'isProvisional', 'basicSalary', 'positionAllowance', 'transportAllowance', 'mealAllowance', 'overtimePayment', 'otherAllowances', 'grossIncome', 'absenceDeduction', 'lateDeduction', 'bpjsEmployment', 'bpjsHealth', 'pph21', 'otherDeductions', 'totalDeductions', 'netPay', 'calculationNotes', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.payslipId)
+        && isValidId(data.payrollId)
+        && isValidId(data.companyId)
+        && isValidId(data.employeeId)
+        && data.uid is string && data.uid.size() <= 128
+        && data.periodMonth is string && data.periodMonth.matches('^\\d{4}-\\d{2}$')
+        && data.workflowStatus in ['Draft', 'Calculation', 'HR Review', 'Management Approval', 'Finalized', 'Paid']
+        && data.isProvisional is bool
+        && data.basicSalary is number && data.basicSalary >= 0
+        && data.grossIncome is number && data.grossIncome >= 0
+        && data.totalDeductions is number && data.totalDeductions >= 0
+        && data.netPay is number && data.netPay >= 0
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPerformanceReview(data) {
+      return data.keys().hasAll(['reviewId', 'companyId', 'employeeId', 'uid', 'cycleLabel', 'kpiScore', 'overallRating', 'status', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['reviewId', 'companyId', 'employeeId', 'uid', 'reviewerId', 'cycleLabel', 'kpiScore', 'competencyScore', 'overallRating', 'strengths', 'improvements', 'status', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.reviewId)
+        && isValidId(data.companyId)
+        && isValidId(data.employeeId)
+        && data.uid is string && data.uid.size() <= 128
+        && data.cycleLabel is string && data.cycleLabel.size() <= 60
+        && data.kpiScore is number && data.kpiScore >= 0 && data.kpiScore <= 100
+        && data.overallRating in ['Exceeds', 'Meets', 'Needs Improvement']
+        && data.status in ['Draft', 'Submitted', 'Acknowledged']
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAnnouncement(data) {
+      return data.keys().hasAll(['announcementId', 'companyId', 'title', 'body', 'category', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['announcementId', 'companyId', 'title', 'body', 'category', 'publishedAt', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.announcementId)
+        && isValidId(data.companyId)
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.body is string && data.body.size() >= 2 && data.body.size() <= 2000
+        && data.category in ['Policy', 'Payroll', 'Event', 'Urgent']
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['notificationId', 'companyId', 'recipientUid', 'title', 'message', 'type', 'isRead', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['notificationId', 'companyId', 'recipientEmployeeId', 'recipientUid', 'title', 'message', 'type', 'isRead', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.notificationId)
+        && isValidId(data.companyId)
+        && data.recipientUid is string && data.recipientUid.size() <= 128
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 140
+        && data.message is string && data.message.size() >= 2 && data.message.size() <= 400
+        && data.type in ['Leave', 'Overtime', 'Payroll', 'Attendance', 'Announcement']
+        && data.isRead is bool
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['logId', 'companyId', 'actorUid', 'actorRole', 'action', 'targetCollection', 'targetId', 'summary', 'recordStatus', 'createdBy', 'createdAt'])
+        && data.keys().hasOnly(['logId', 'companyId', 'actorUid', 'actorEmail', 'actorRole', 'action', 'targetCollection', 'targetId', 'summary', 'recordStatus', 'createdBy', 'createdAt'])
+        && isValidId(data.logId)
+        && isValidId(data.companyId)
+        && data.actorUid == request.auth.uid
+        && data.actorRole is string && data.actorRole.size() <= 40
+        && data.action is string && data.action.size() >= 2 && data.action.size() <= 100
+        && data.targetCollection is string && data.targetCollection.size() <= 64
+        && data.targetId is string && data.targetId.size() <= 80
+        && data.summary is string && data.summary.size() <= 400
+        && data.recordStatus == 'active'
+        && data.createdBy == request.auth.uid
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSystemSettings(data) {
+      return data.keys().hasAll(['settingId', 'companyId', 'effectiveDate', 'bpjsHealthEmployeeRate', 'bpjsJhtEmployeeRate', 'bpjsJpEmployeeRate', 'pph21Method', 'overtimeHourlyMultiplier', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['settingId', 'companyId', 'effectiveDate', 'bpjsHealthEmployeeRate', 'bpjsHealthEmployerRate', 'bpjsHealthCapAmount', 'bpjsJhtEmployeeRate', 'bpjsJpEmployeeRate', 'bpjsJpCapAmount', 'pph21Method', 'pph21PtkpAnnual', 'pph21Tier1Rate', 'pph21Tier2Rate', 'overtimeHourlyMultiplier', 'absenceDailyPenaltyRate', 'latePenaltyPerMinute', 'requireGpsAttendance', 'requireSelfieAttendance', 'officeLat', 'officeLng', 'maxGeofenceMeters', 'recordStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.settingId)
+        && isValidId(data.companyId)
+        && data.effectiveDate is string && data.effectiveDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.bpjsHealthEmployeeRate is number && data.bpjsHealthEmployeeRate >= 0
+        && data.bpjsJhtEmployeeRate is number && data.bpjsJhtEmployeeRate >= 0
+        && data.bpjsJpEmployeeRate is number && data.bpjsJpEmployeeRate >= 0
+        && data.pph21Method in ['TER', 'Progressive']
+        && data.overtimeHourlyMultiplier is number && data.overtimeHourlyMultiplier >= 1
+        && data.recordStatus in ['active', 'archived']
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    // 0. Connection health check doc
+    match /test/connection {
+      allow get: if request.auth != null;
+    }
+
+    // 1. Companies
+    match /companies/{companyId} {
+      allow get: if isValidId(companyId) && isActiveUser();
+      allow list: if isSignedIn() && resource.data.recordStatus == 'active';
+      allow create: if isValidId(companyId) && isSuperAdmin() && isValidCompany(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(companyId) && isSuperAdmin() && isValidCompany(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    // 2. Users (RBAC — Strict Self-Escalation Block)
+    match /users/{uid} {
+      allow get: if isValidId(uid) && (isSuperAdmin() || isHRAdmin() || (isSignedIn() && request.auth.uid == uid));
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isSuperAdmin() || isHRAdmin());
+      allow create: if isValidId(uid) && isValidUser(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin()
+          || (isSignedIn() && uid == request.auth.uid && incoming().uid == request.auth.uid && incoming().role == 'Employee' && incoming().status == 'active')
+        );
+      allow update: if isValidId(uid) && isValidUser(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin()
+          || (isSignedIn() && request.auth.uid == uid && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']))
+        );
+      allow delete: if isValidId(uid) && isSuperAdmin();
+    }
+
+    // 3. Employees (Salary & PII Isolation)
+    match /employees/{employeeId} {
+      allow get: if isValidId(employeeId) && (isBackoffice() || (isSignedIn() && resource.data.uid == request.auth.uid));
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isBackoffice());
+      allow create: if isValidId(employeeId) && isHRAdmin() && isValidEmployee(incoming())
+        && incoming().employeeId == employeeId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(employeeId) && isHRAdmin() && isValidEmployee(incoming())
+        && incoming().employeeId == existing().employeeId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(employeeId) && isSuperAdmin();
+    }
+
+    // 4. Departments
+    match /departments/{departmentId} {
+      allow get: if isValidId(departmentId) && isSignedIn();
+      allow list: if isSignedIn() && resource.data.recordStatus == 'active';
+      allow create: if isValidId(departmentId) && isHRAdmin() && isValidDepartment(incoming())
+        && incoming().departmentId == departmentId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(departmentId) && isHRAdmin() && isValidDepartment(incoming())
+        && incoming().departmentId == existing().departmentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(departmentId) && isSuperAdmin();
+    }
+
+    // 5. Positions
+    match /positions/{positionId} {
+      allow get: if isValidId(positionId) && isSignedIn();
+      allow list: if isSignedIn() && resource.data.recordStatus == 'active';
+      allow create: if isValidId(positionId) && isHRAdmin() && isValidPosition(incoming())
+        && incoming().positionId == positionId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(positionId) && isHRAdmin() && isValidPosition(incoming())
+        && incoming().positionId == existing().positionId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(positionId) && isSuperAdmin();
+    }
+
+    // 6. Attendance (Composite ID {employeeId}_{workDate} prevents duplicates)
+    match /attendance/{attendanceId} {
+      allow get: if isValidId(attendanceId) && (isBackoffice() || (isSignedIn() && resource.data.uid == request.auth.uid));
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isBackoffice());
+      allow create: if isValidId(attendanceId) && isValidAttendance(incoming())
+        && attendanceId == (incoming().employeeId + '_' + incoming().workDate)
+        && incoming().attendanceId == attendanceId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && (isHRAdmin() || (isSignedIn() && incoming().uid == request.auth.uid));
+      allow update: if isValidId(attendanceId) && isValidAttendance(incoming())
+        && incoming().attendanceId == existing().attendanceId
+        && incoming().employeeId == existing().employeeId
+        && incoming().workDate == existing().workDate
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isHRAdmin()
+          || (isSignedIn() && existing().uid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['clockOutAt', 'clockOutLat', 'clockOutLng', 'clockOutSelfie', 'workMinutes', 'correctionStatus', 'correctionReason', 'updatedAt']))
+        );
+      allow delete: if isValidId(attendanceId) && isSuperAdmin();
+    }
+
+    // 7. Leave Requests
+    match /leave_requests/{leaveRequestId} {
+      allow get: if isValidId(leaveRequestId) && (isBackoffice() || (isSignedIn() && resource.data.uid == request.auth.uid));
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isBackoffice());
+      allow create: if isValidId(leaveRequestId) && isValidLeaveRequest(incoming())
+        && incoming().leaveRequestId == leaveRequestId
+        && incoming().status == 'Pending'
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && (isHRAdmin() || (isSignedIn() && incoming().uid == request.auth.uid));
+      allow update: if isValidId(leaveRequestId) && isValidLeaveRequest(incoming())
+        && incoming().leaveRequestId == existing().leaveRequestId
+        && incoming().employeeId == existing().employeeId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin()
+          || ((isHRAdmin() || isSupervisor()) && existing().status == 'Pending' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason', 'reviewedBy', 'reviewedAt', 'updatedAt']))
+          || (isSignedIn() && existing().uid == request.auth.uid && existing().status == 'Pending' && incoming().status == 'Cancelled' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+        );
+      allow delete: if isValidId(leaveRequestId) && isSuperAdmin();
+    }
+
+    // 8. Leave Balances
+    match /leave_balances/{balanceId} {
+      allow get: if isValidId(balanceId) && (isBackoffice() || (isSignedIn() && resource.data.uid == request.auth.uid));
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isBackoffice());
+      allow create: if isValidId(balanceId) && isHRAdmin() && isValidLeaveBalance(incoming())
+        && incoming().balanceId == balanceId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(balanceId) && (isHRAdmin() || isSupervisor()) && isValidLeaveBalance(incoming())
+        && incoming().balanceId == existing().balanceId
+        && incoming().employeeId == existing().employeeId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(balanceId) && isSuperAdmin();
+    }
+
+    // 9. Shifts
+    match /shifts/{shiftId} {
+      allow get: if isValidId(shiftId) && isSignedIn();
+      allow list: if isSignedIn() && resource.data.recordStatus == 'active';
+      allow create: if isValidId(shiftId) && isHRAdmin() && isValidShift(incoming())
+        && incoming().shiftId == shiftId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(shiftId) && isHRAdmin() && isValidShift(incoming())
+        && incoming().shiftId == existing().shiftId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(shiftId) && isSuperAdmin();
+    }
+
+    // 10. Overtime Requests
+    match /overtime_requests/{overtimeId} {
+      allow get: if isValidId(overtimeId) && (isBackoffice() || (isSignedIn() && resource.data.uid == request.auth.uid));
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isBackoffice());
+      allow create: if isValidId(overtimeId) && isValidOvertimeRequest(incoming())
+        && incoming().overtimeId == overtimeId
+        && incoming().status == 'Pending'
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && (isHRAdmin() || (isSignedIn() && incoming().uid == request.auth.uid));
+      allow update: if isValidId(overtimeId) && isValidOvertimeRequest(incoming())
+        && incoming().overtimeId == existing().overtimeId
+        && incoming().employeeId == existing().employeeId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin()
+          || ((isHRAdmin() || isSupervisor()) && existing().status == 'Pending' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason', 'reviewedBy', 'reviewedAt', 'updatedAt']))
+        );
+      allow delete: if isValidId(overtimeId) && isSuperAdmin();
+    }
+
+    // 11. Payroll Runs (Locked once status == 'Paid')
+    match /payroll/{payrollId} {
+      allow get: if isValidId(payrollId) && isPayrollAdmin();
+      allow list: if isSignedIn() && isPayrollAdmin();
+      allow create: if isValidId(payrollId) && isHRAdmin() && isValidPayrollRun(incoming())
+        && incoming().payrollId == payrollId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(payrollId) && isPayrollAdmin() && isValidPayrollRun(incoming())
+        && existing().status != 'Paid'
+        && incoming().payrollId == existing().payrollId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(payrollId) && isSuperAdmin() && existing().status == 'Draft';
+    }
+
+    // 12. Payslips (Strict employee salary isolation + locked when Paid)
+    match /payslips/{payslipId} {
+      allow get: if isValidId(payslipId) && (isPayrollAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid));
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isPayrollAdmin());
+      allow create: if isValidId(payslipId) && isHRAdmin() && isValidPayslip(incoming())
+        && incoming().payslipId == payslipId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(payslipId) && isPayrollAdmin() && isValidPayslip(incoming())
+        && existing().workflowStatus != 'Paid'
+        && incoming().payslipId == existing().payslipId
+        && incoming().employeeId == existing().employeeId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(payslipId) && isSuperAdmin() && existing().workflowStatus == 'Draft';
+    }
+
+    // 13. Performance Reviews
+    match /performance_reviews/{reviewId} {
+      allow get: if isValidId(reviewId) && (isBackoffice() || (isSignedIn() && resource.data.uid == request.auth.uid));
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isBackoffice());
+      allow create: if isValidId(reviewId) && (isHRAdmin() || isSupervisor() || isManagement()) && isValidPerformanceReview(incoming())
+        && incoming().reviewId == reviewId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(reviewId) && isValidPerformanceReview(incoming())
+        && incoming().reviewId == existing().reviewId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isHRAdmin() || isSupervisor() || isManagement()
+          || (isSignedIn() && existing().uid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) && incoming().status == 'Acknowledged')
+        );
+      allow delete: if isValidId(reviewId) && isSuperAdmin();
+    }
+
+    // 14. Announcements
+    match /announcements/{announcementId} {
+      allow get: if isValidId(announcementId) && isSignedIn();
+      allow list: if isSignedIn() && resource.data.recordStatus == 'active';
+      allow create: if isValidId(announcementId) && isHRAdmin() && isValidAnnouncement(incoming())
+        && incoming().announcementId == announcementId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(announcementId) && isHRAdmin() && isValidAnnouncement(incoming())
+        && incoming().announcementId == existing().announcementId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(announcementId) && isSuperAdmin();
+    }
+
+    // 15. Notifications
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && (isHRAdmin() || (isSignedIn() && resource.data.recipientUid == request.auth.uid));
+      allow list: if isSignedIn() && (resource.data.recipientUid == request.auth.uid || isHRAdmin());
+      allow create: if isValidId(notificationId) && isBackoffice() && isValidNotification(incoming())
+        && incoming().notificationId == notificationId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(notificationId) && isValidNotification(incoming())
+        && incoming().notificationId == existing().notificationId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isHRAdmin()
+          || (isSignedIn() && existing().recipientUid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['isRead', 'updatedAt']))
+        );
+      allow delete: if isValidId(notificationId) && isSuperAdmin();
+    }
+
+    // 16. Audit Logs (Immutable)
+    match /audit_logs/{logId} {
+      allow get: if isValidId(logId) && (isHRAdmin() || isManagement());
+      allow list: if isSignedIn() && (isHRAdmin() || isManagement());
+      allow create: if isValidId(logId) && isSignedIn() && isValidAuditLog(incoming())
+        && incoming().logId == logId
+        && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // 17. System Settings
+    match /system_settings/{settingId} {
+      allow get: if isValidId(settingId) && isSignedIn();
+      allow list: if isSignedIn() && resource.data.recordStatus == 'active';
+      allow create: if isValidId(settingId) && isSuperAdmin() && isValidSystemSettings(incoming())
+        && incoming().settingId == settingId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(settingId) && isSuperAdmin() && isValidSystemSettings(incoming())
+        && incoming().settingId == existing().settingId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+  }
+}
